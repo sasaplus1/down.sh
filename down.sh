@@ -40,11 +40,11 @@ _down_move() {
   shift
 
   local pattern=$(
-    printf -- "-iname *${first}* "
+    printf -- "-name ${first} "
 
     for v in $*
     do
-      printf -- "-and -iname *${v}* "
+      printf -- "-and -name ${v} "
     done
   )
 
