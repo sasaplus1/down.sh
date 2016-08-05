@@ -24,85 +24,43 @@ _down() {
   # arguments not found
   [ "$#" -eq 0 ] && _down_usage && return 1
 
-  # use peco
-  if [ "$1" = '-p' ]
-  then
-    shift
-    _down_peco $*
-  else
-    _down_move $*
-  fi
-}
-
-_down_move() {
-  local first=$1
-
-  shift
-
-  local pattern=$(
-    printf -- "-name ${first} "
-
-    for v in $*
-    do
-      printf -- "-and -name ${v} "
-    done
+  local patterns=$(
+    printf -- "-type d -name $1 " && shift
+    printf -- "$*" | xargs -n 1 -I {} printf -- "-or -type d -name {} "
+    printf -- '-print'
   )
-
-  local find_options="-type d ${pattern}-print"
 
   local downrc="$HOME/.downrc"
   local result=
 
   if [ -r "$downrc" ]
   then
-    result="$(find "$(pwd)" $(< "$downrc") $(printf -- "$find_options"))"
+    result="$(find "$(pwd)" $(< "$downrc") $patterns)"
   else
-    result="$(find "$(pwd)" $(printf -- "$find_options"))"
+    result="$(find "$(pwd)" $patterns)"
   fi
 
-  local count=0
+  # not found
+  [ -z "$result" ] && return 2
 
-  for file in $(printf "$result" | xargs -n 1)
-  do
-    count=$((count + 1))
-  done
+  # found
+  # `grep -c` equals to `wc -l`
+  local count=$(printf "$result" | grep -c '')
 
+  # found
   if [ "$count" -eq 1 ]
   then
     cd "$result"
-  elif [ "$count" -gt 1 ]
-  then
-    printf 'match to some files:\n' >&2
-    printf "${result}\n" >&2
-
-    return 2
   else
-    printf 'no match' >&2
+    if type peco >/dev/null 2>&1
+    then
+      cd "$(printf "$result" | peco --select-1)"
+    else
+      printf 'match to some files:\n' >&2
+      printf "${result}\n" >&2
 
-    return 3
-  fi
-}
-
-_down_peco() {
-  type peco 2>&1 >/dev/null
-
-  if [ "$?" -ne 0 ]
-  then
-    echo 'peco is not found'
-
-    return 4
-  fi
-
-  local find_options='-type d -print'
-  local peco_options='--select-1 --query'
-
-  local downrc="$HOME/.downrc"
-
-  if [ -r "$downrc" ]
-  then
-    cd "$(find "$(pwd)" $(< "$downrc") $find_options | peco $peco_options "$*")"
-  else
-    cd "$(find "$(pwd)" $find_options | peco $peco_options "$*")"
+      return 3
+    fi
   fi
 }
 
@@ -110,10 +68,7 @@ _down_usage() {
   # CAUTION: do not delete tabs
   cat <<-USAGE >&2
 	Usage:
-	  down [-p] pattern
-	
-	Options:
-	  -p  use peco
+	  down pattern
 	USAGE
 }
 
